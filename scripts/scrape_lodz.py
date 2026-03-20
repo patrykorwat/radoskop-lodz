@@ -1139,7 +1139,9 @@ def scrape(output_path: str, profiles_path: str, debug: bool = False):
     # Save data.json
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
+        compact_named_votes(output)
+
+        json.dump(output, f, ensure_ascii=False, separators=(',', ':'))
 
     size_kb = Path(output_path).stat().st_size / 1024
     print(f"\n=== Wyniki ===")
@@ -1185,6 +1187,29 @@ def main():
     except Exception as e:
         print(f"\n\nBŁĄD: {e}")
         import traceback
+
+def compact_named_votes(output):
+    """Convert named_votes from string arrays to indexed format for smaller JSON."""
+    for kad in output.get("kadencje", []):
+        names = set()
+        for v in kad.get("votes", []):
+            nv = v.get("named_votes", {})
+            for cat_names in nv.values():
+                for n in cat_names:
+                    if isinstance(n, str):
+                        names.add(n)
+        if not names:
+            continue
+        index = sorted(names, key=lambda n: n.split()[-1] + " " + n)
+        name_to_idx = {n: i for i, n in enumerate(index)}
+        kad["councilor_index"] = index
+        for v in kad.get("votes", []):
+            nv = v.get("named_votes", {})
+            for cat in nv:
+                nv[cat] = sorted(name_to_idx[n] for n in nv[cat] if isinstance(n, str) and n in name_to_idx)
+    return output
+
+
         traceback.print_exc()
         sys.exit(1)
 
